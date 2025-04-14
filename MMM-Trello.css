@@ -1,11 +1,200 @@
-.checklist-wrapper {
+.MMM-Trello {
+    width: 100%;
+    max-width: 800px; /* Control maximum width */
+    height: auto; /* Let height be determined by content */
+    display: block;
+    margin: 0 auto; /* Center the module if smaller than container */
+    box-sizing: border-box;
+    max-height: 400px; /* User-defined max height */
+    position: relative; /* For fixed positioning of child elements */
+    overflow: hidden; /* Hide overflow at container level */
+}
 
+/* Fixed title container */
+.fixed-title {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #000; /* Match MM background */
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    width: 100%;
+}
+
+/* List title styling */
+.list-title-container {
+    margin-bottom: 10px;
+    text-align: left;
+    padding: 0 10px;
+    box-sizing: border-box;
+    width: 100%;
+    position: relative; /* For positioning the update indicator */
+}
+
+.list-title {
+    font-size: 2em;
+}
+
+/* Update indicator styling */
+.update-indicator {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #4CAF50; /* Green dot */
+    box-shadow: 0 0 10px #4CAF50; /* Glow effect */
+    opacity: 0;
+    animation: blink 2s ease-in-out;
+    z-index: 10;
+}
+
+@keyframes blink {
+    0%, 15%, 85%, 100% { 
+        opacity: 0; 
+    }
+    30%, 70% { 
+        opacity: 1; 
+    }
+}
+
+/* Scrolling container */
+.scroll-wrapper {
+    width: 100%;
+    box-sizing: border-box;
+    overflow-y: auto;
+    max-height: calc(400px - 60px); /* Adjust for title height */
+    padding-right: 10px; /* Make room for scrollbar */
+}
+
+/* Cards container for scrolling */
+.cards-container {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Card styling */
+.MMM-Trello .card-container {
+    margin-bottom: 8px;
+    padding: 4px 10px;
+    border-bottom: 3px solid rgba(108, 122, 137, 1);
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.MMM-Trello .card-container:last-child {
+    border-bottom: none;
+    margin-bottom: 10px; /* Add some bottom spacing to the last item */
+}
+
+/* Card title styling */
+.card-title {
+    font-size: 0.9em;
+    margin-bottom: 4px;
+    width: 100%;
+    box-sizing: border-box;
+    word-wrap: break-word; /* Prevent text overflow */
+}
+
+/* Due date styling */
+.due-date {
+    font-style: italic;
+    opacity: 0.9;
+}
+
+.due-date-only {
+    font-style: italic;
+    opacity: 0.8;
+}
+
+/* Description styling */
+.card-description {
+    font-size: 0.7em;
+    margin-left: 10px;
+    margin-top: 3px;
+    opacity: 0.8;
+    width: calc(100% - 10px); /* Respect margin-left */
+    box-sizing: border-box;
+    word-wrap: break-word; /* Prevent text overflow */
+}
+
+.description-line {
+    margin-bottom: 2px;
+}
+
+/* Checklist styling */
+.checklist-wrapper {
+    margin-top: 5px;
+    margin-left: 10px;
+    width: calc(100% - 10px); /* Respect margin-left */
+    box-sizing: border-box;
+}
+
+.checklist-title {
+    font-size: 0.8em;
+    margin-bottom: 5px;
+    color: #fff;
+    font-weight: normal;
 }
 
 .checklist-item {
     text-align: left;
+    margin-left: 10px;
+    margin-bottom: 3px;
+    font-size: 0.7em;
+    display: flex;
+    align-items: center;
+    width: calc(100% - 10px); /* Respect margin-left */
 }
 
+.checklist-item-icon {
+    display: inline-block;
+    width: 14px;
+    min-width: 14px; /* Prevent shrinking */
+    margin-right: 5px;
+}
+
+.checklist-item-icon.checklist-item-incomplete:before {
+    font-family: FontAwesome;
+    content: "\f096"; /* fa-square-o */
+}
+
+.checklist-item-icon.checklist-item-complete:before {
+    font-family: FontAwesome;
+    content: "\f046"; /* fa-check-square-o */
+}
+
+.checklist-item-name {
+    display: inline-block;
+    flex: 1;
+    word-wrap: break-word; /* Prevent text overflow */
+}
+
+.checklist-loading {
+    text-align: center;
+    opacity: 0.5;
+    font-size: 0.7em;
+    width: 100%;
+}
+
+/* Loading indicators */
+.loading-wrapper {
+    text-align: center;
+    opacity: 0.5;
+    width: 100%;
+}
+
+.loading-icon {
+    font-size: 0.8em;
+}
+
+/* Special states */
 .is-completed {
     text-decoration: line-through;
+}
+
+.bright {
+    color: #fff;
 }

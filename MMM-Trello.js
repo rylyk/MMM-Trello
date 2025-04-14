@@ -11,7 +11,7 @@ Module.register("MMM-Trello", {
 
     // Default module config.
     defaults: {
-        reloadInterval: 5 * 60 * 1000, // every 10 minutes
+        reloadInterval: 5 * 60 * 1000, // every 5 minutes
         updateInterval: 10 * 1000, // every 10 seconds
         animationSpeed: 2.5 * 1000, // 2.5 seconds
         showTitle: true,
@@ -33,7 +33,9 @@ Module.register("MMM-Trello", {
         scrollPause: 5000, // Pause at top and bottom in milliseconds
         scrollStep: 1, // Pixels to scroll per step
         showUpdateIndicator: true, // Show a visual indicator when updates happen
-        maxHeight: null // Added for dynamic CSS
+        maxHeight: null, // Added for dynamic CSS
+        filterByLabels: [], // Optional array of label names or colors to filter cards by
+        showLabels: true // Whether to display labels on cards
     },
 
     // Define start sequence.
@@ -51,6 +53,12 @@ Module.register("MMM-Trello", {
         this.error = false;
         this.errorMessage = "";
         this.retry = true;
+        this.pause = false;
+        
+        // Store intervals for proper cleanup
+        this.updateInterval = null;
+        this.reloadInterval = null;
+        this.scrollTimeout = null;
 
         // For wholeList mode, we don't need frequent DOM updates
         if (this.config.wholeList === true) {
@@ -79,7 +87,12 @@ Module.register("MMM-Trello", {
         if (!this.config.wholeList) {
             self.updateDom(self.config.animationSpeed);
             
-            setInterval(function () {
+            // Clear existing interval if any
+            if (this.updateInterval) {
+                clearInterval(this.updateInterval);
+            }
+            
+            this.updateInterval = setInterval(function () {
                 if (self.pause) {
                     return;
                 }
@@ -90,7 +103,7 @@ Module.register("MMM-Trello", {
     },
 
     /* scheduleUpdateRequestInterval()
-     * Schedule visual update.
+     * Schedule API update requests.
      */
     scheduleUpdateRequestInterval: function () {
         var self = this;
@@ -98,7 +111,12 @@ Module.register("MMM-Trello", {
         // Immediate first update request
         this.requestUpdate();
 
-        setInterval(function () {
+        // Clear existing interval if any
+        if (this.reloadInterval) {
+            clearInterval(this.reloadInterval);
+        }
+        
+        this.reloadInterval = setInterval(function () {
             if (self.pause) {
                 return;
             }
@@ -163,7 +181,7 @@ Module.register("MMM-Trello", {
                 
                 var listTitle = document.createElement("div");
                 listTitle.className = "list-title bright";
-                listTitle.innerHTML = this.config.listTitle;
+                listTitle.textContent = this.config.listTitle;
                 
                 // Add update indicator if enabled
                 if (this.config.showUpdateIndicator) {
@@ -178,8 +196,10 @@ Module.register("MMM-Trello", {
             }
             
             if (this.listContent.length === 0) {
-                wrapper.innerHTML = this.translate("NO_CARDS");
-                wrapper.className = "small dimmed";
+                var emptyMessage = document.createElement("div");
+                emptyMessage.className = "small dimmed";
+                emptyMessage.textContent = this.translate("NO_CARDS");
+                wrapper.appendChild(emptyMessage);
             } else {
                 var content, card, startat = 0, endat = this.listContent.length - 1;
                 if (!this.config.wholeList) {
@@ -197,8 +217,10 @@ Module.register("MMM-Trello", {
             }
         } else {
             if (this.error) {
-                wrapper.innerHTML = "Please check your config file, an error occured: " + this.errorMessage;
-                wrapper.className = "xsmall dimmed";
+                var errorElement = document.createElement("div");
+                errorElement.className = "xsmall dimmed";
+                errorElement.textContent = "Please check your config file, an error occured: " + this.errorMessage;
+                wrapper.appendChild(errorElement);
             } else {
                 var loadingWrapper = document.createElement("div");
                 loadingWrapper.className = "loading-wrapper";
@@ -250,7 +272,7 @@ Module.register("MMM-Trello", {
             
             var listTitle = document.createElement("div");
             listTitle.className = "list-title bright";
-            listTitle.innerHTML = this.config.listTitle;
+            listTitle.textContent = this.config.listTitle;
             
             // Add update indicator if enabled
             if (this.config.showUpdateIndicator) {
@@ -281,13 +303,66 @@ Module.register("MMM-Trello", {
         return scrollContainer;
     },
     
-    // Render card elements into the provided container
+    // Add a helper function for safe HTML rendering
+    sanitizeHTML: function(content) {
+        if (!content) return '';
+        
+        // Create a temporary div element
+        var temp = document.createElement('div');
+        
+        // Set the content as text - this automatically escapes HTML
+        temp.textContent = content;
+        
+        // Return the safe HTML string
+        return temp.innerHTML;
+    },
+
+    // Update renderCards to use the sanitize function
     renderCards: function(container, startIndex, endIndex) {
         for (var card = startIndex; card <= endIndex; card++) {
             // Create a container for each card
             var cardContainer = document.createElement("div");
             cardContainer.className = "card-container";
             container.appendChild(cardContainer);
+            
+            // Add labels if configured
+            if (this.config.showLabels && this.listContent[card].labels && this.listContent[card].labels.length > 0) {
+                var labelsContainer = document.createElement("div");
+                labelsContainer.className = "card-labels";
+                
+                // Sort labels by color for consistent appearance
+                var sortedLabels = this.listContent[card].labels.slice().sort(function(a, b) {
+                    // If colors are the same, sort by name
+                    if (a.color === b.color) {
+                        return a.name.localeCompare(b.name);
+                    }
+                    // Sort by color
+                    return (a.color || "").localeCompare(b.color || "");
+                });
+                
+                // Add each label
+                for (var l = 0; l < sortedLabels.length; l++) {
+                    var label = sortedLabels[l];
+                    var labelElement = document.createElement("span");
+                    labelElement.className = "card-label";
+                    
+                    // Add color class if available
+                    if (label.color) {
+                        labelElement.className += " label-" + label.color;
+                    } else {
+                        labelElement.className += " label-none";
+                    }
+                    
+                    // Add name if available
+                    if (label.name) {
+                        labelElement.textContent = this.sanitizeHTML(label.name);
+                    }
+                    
+                    labelsContainer.appendChild(labelElement);
+                }
+                
+                cardContainer.appendChild(labelsContainer);
+            }
             
             if (this.config.showTitle || this.config.showDueDate) {
                 var name = document.createElement("div");
@@ -304,7 +379,7 @@ Module.register("MMM-Trello", {
 
                 content = "";
                 if (this.config.showTitle) {
-                    content = this.listContent[card].name;
+                    content = this.sanitizeHTML(this.listContent[card].name);
                 }
 
                 if (this.config.showDueDate && this.listContent[card].due) {
@@ -314,7 +389,7 @@ Module.register("MMM-Trello", {
                     if (this.config.showTitle) {
                         var dueSpan = document.createElement("span");
                         dueSpan.className = "due-date";
-                        dueSpan.innerHTML = dueText;
+                        dueSpan.textContent = dueText;
                         
                         name.innerHTML = content;
                         name.appendChild(document.createTextNode(" ("));
@@ -322,7 +397,7 @@ Module.register("MMM-Trello", {
                         name.appendChild(document.createTextNode(")"));
                     } else {
                         name.className += " due-date-only";
-                        name.innerHTML = dueText;
+                        name.textContent = dueText;
                     }
                 } else {
                     name.innerHTML = content;
@@ -336,14 +411,14 @@ Module.register("MMM-Trello", {
                 var desc = document.createElement("div");
                 desc.className = "card-description " + (this.config.isCompleted ? "is-completed dimmed" : "");
 
-                content = this.listContent[card].desc;
+                content = this.sanitizeHTML(this.listContent[card].desc);
 
                 if (this.config.showLineBreaks) {
                     var lines = content.split('\n');
                     for (var i in lines) {
                         var lineElement = document.createElement("div");
                         lineElement.className = "description-line";
-                        lineElement.innerHTML = lines[i];
+                        lineElement.textContent = lines[i];
                         desc.appendChild(lineElement);
                     }
                 }
@@ -368,37 +443,44 @@ Module.register("MMM-Trello", {
      */
     getChecklistDom: function (wrapper, card) {
         var checklistIDs = this.listContent[card].idChecklists;
-        for (var id in checklistIDs) {
-            if (checklistIDs[id] in this.checklistData) {
-                var checklist = this.checklistData[checklistIDs[id]];
+        if (!checklistIDs || checklistIDs.length === 0) {
+            return;
+        }
+        
+        for (var i = 0; i < checklistIDs.length; i++) {
+            var checklistId = checklistIDs[i];
+            if (checklistId in this.checklistData) {
+                var checklist = this.checklistData[checklistId];
+                if (!checklist.checkItems || checklist.checkItems.length === 0) {
+                    continue;
+                }
+                
+                // Sort checklist items by position
                 checklist.checkItems.sort(function(a, b) {
-                    if (a.pos < b.pos) {
-                        return -1;
-                    } else if (a.pos > b.pos) {
-                        return 1;
-                    }
-                    return 0;
+                    return a.pos - b.pos;
                 });
+                
                 if (this.config.showChecklistTitle) {
                     var titleElement = document.createElement("div");
                     titleElement.className = "checklist-title";
-                    titleElement.innerHTML = checklist.name;
+                    titleElement.textContent = this.sanitizeHTML(checklist.name);
                     wrapper.appendChild(titleElement);
                 }
 
-                for (var item in checklist.checkItems) {
+                for (var j = 0; j < checklist.checkItems.length; j++) {
+                    var item = checklist.checkItems[j];
                     var itemWrapper = document.createElement("div");
                     itemWrapper.className = "checklist-item";
 
                     var itemSymbol = document.createElement("span");
                     itemSymbol.className = "checklist-item-icon " + 
-                        (checklist.checkItems[item].state === "complete" ? 
+                        (item.state === "complete" ? 
                          "checklist-item-complete" : "checklist-item-incomplete");
                     itemWrapper.appendChild(itemSymbol);
 
                     var itemName = document.createElement("span");
                     itemName.className = "checklist-item-name";
-                    itemName.innerHTML = checklist.checkItems[item].name;
+                    itemName.textContent = this.sanitizeHTML(item.name);
                     itemWrapper.appendChild(itemName);
 
                     wrapper.appendChild(itemWrapper);
@@ -451,19 +533,35 @@ Module.register("MMM-Trello", {
         }
 
         if (notification === "TRELLO_ERROR") {
-            this.errorMessage = "Error " + payload.error.statusCode + "(" + payload.error.statusMessage + "): " + payload.error.responseBody;
-            Log.error(this.errorMessage);
+            // Build a more user-friendly error message
+            var errorCode = payload.error.statusCode || "Unknown";
+            var errorMsg = payload.error.statusMessage || "Unknown error";
+            var details = payload.error.responseBody || "";
+            
+            this.errorMessage = "Error " + errorCode + " (" + errorMsg + ")" + 
+                (details ? ": " + details : "");
+            
+            Log.error("MMM-Trello: " + this.errorMessage);
 
             this.error = true;
-            this.retry = false;
+            // Only disable retry for permanent errors, not connection issues
+            this.retry = (errorCode < 400 || errorCode >= 500);
 
             this.updateDom(0); // Use 0 to avoid animation
+            return;
         }
         if (notification === "LIST_CONTENT") {
             this.error = false;
             
             // Store the new data
-            this.listContent = payload.data;
+            var data = payload.data;
+            
+            // Filter by labels if configured
+            if (this.config.filterByLabels && this.config.filterByLabels.length > 0) {
+                data = this.filterCardsByLabels(data);
+            }
+            
+            this.listContent = data;
             
             if (!this.loaded) {
                 // First time loading - no animation
@@ -541,7 +639,21 @@ Module.register("MMM-Trello", {
         // Set scroll wrapper height
         scrollWrapper.style.maxHeight = availableHeight + 'px';
     },
-    
+
+    // Add debounce helper function for performance
+    debounce: function(func, wait) {
+        var timeout;
+        return function() {
+            var context = this, args = arguments;
+            var later = function() {
+                timeout = null;
+                func.apply(context, args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    },
+
     // Perform scrolling animation
     performScroll: function() {
         if (!this.scrollTarget || !this.scrollingActive) {
@@ -581,10 +693,10 @@ Module.register("MMM-Trello", {
             this.scrollDirection = -1;
         }
         
-        // Apply scroll
+        // Apply scroll (do this more efficiently)
         this.scrollTarget.scrollTop = this.scrollPosition;
         
-        // Schedule next scroll
+        // Schedule next scroll with better performance
         var self = this;
         var delay = 1000 / (this.config.scrollSpeed * 2); // Convert speed to delay
         this.scrollTimeout = setTimeout(function() {
@@ -687,6 +799,60 @@ Module.register("MMM-Trello", {
         
         // Apply CSS
         styleEl.innerHTML = css;
+    },
+
+    // Filter cards by labels
+    filterCardsByLabels: function(cards) {
+        if (!this.config.filterByLabels || this.config.filterByLabels.length === 0) {
+            return cards;
+        }
+        
+        var filteredCards = [];
+        var labelFilters = this.config.filterByLabels.map(function(l) { 
+            return l.toLowerCase(); 
+        });
+        
+        for (var i = 0; i < cards.length; i++) {
+            var card = cards[i];
+            var cardLabels = card.labels || [];
+            
+            // Check if card has any of the specified labels
+            var hasMatchingLabel = cardLabels.some(function(label) {
+                return labelFilters.includes(label.name.toLowerCase()) || 
+                       labelFilters.includes(label.color) || 
+                       // Support for full 6-digit hex color codes
+                       (label.color === null && labelFilters.includes('none'));
+            });
+            
+            if (hasMatchingLabel) {
+                filteredCards.push(card);
+            }
+        }
+        
+        return filteredCards;
+    },
+
+    // Add proper cleanup for module to prevent memory leaks
+    stop: function() {
+        // Clear all intervals
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+            this.updateInterval = null;
+        }
+        
+        if (this.reloadInterval) {
+            clearInterval(this.reloadInterval);
+            this.reloadInterval = null;
+        }
+        
+        // Stop scrolling and clear timeout
+        if (this.scrollTimeout) {
+            clearTimeout(this.scrollTimeout);
+            this.scrollTimeout = null;
+        }
+        
+        this.scrollingActive = false;
+        Log.info("Stopping module: " + this.name);
     }
 });
 
